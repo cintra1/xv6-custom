@@ -16,6 +16,10 @@
 #include "file.h"
 #include "fcntl.h"
 
+// Declaration of the global variables
+int read_count = 0;
+extern struct spinlock readlock;
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -72,9 +76,15 @@ sys_read(void)
   struct file *f;
   int n;
   char *p;
+  
+  // Acquire the lock before modifying read_count
+  acquire(&readlock);
+  read_count++;
+  release(&readlock);
 
   if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0)
     return -1;
+  
   return fileread(f, p, n);
 }
 
@@ -241,6 +251,7 @@ bad:
 static struct inode*
 create(char *path, short type, short major, short minor)
 {
+  uint off;
   struct inode *ip, *dp;
   char name[DIRSIZ];
 
@@ -248,7 +259,7 @@ create(char *path, short type, short major, short minor)
     return 0;
   ilock(dp);
 
-  if((ip = dirlookup(dp, name, 0)) != 0){
+  if((ip = dirlookup(dp, name, &off)) != 0){
     iunlockput(dp);
     ilock(ip);
     if(type == T_FILE && ip->type == T_FILE)

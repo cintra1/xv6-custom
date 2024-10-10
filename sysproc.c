@@ -6,6 +6,10 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "spinlock.h"
+
+extern int read_count;
+extern struct spinlock readlock;
 
 int
 sys_fork(void)
@@ -88,4 +92,18 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+// Return the total number of times the read() system call has been invoked
+int
+sys_getreadcount(void)
+{
+  int count;
+  
+  // Acquire the lock before reading read_count
+  acquire(&readlock);
+  count = read_count;
+  release(&readlock);
+  
+  return count;
 }
